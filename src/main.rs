@@ -3,15 +3,44 @@
 use rusqlite::{Connection, Result, params};
 use std::env;
 use std::fs;
-use std::fs::read;
+use std::fs::File;
+use std::io::{Read, Error};
 
 mod queries;
+mod offsets;
 
 #[derive(Debug)]
 struct Config {
     input_file_path: Option<String>,
     output_file_path: Option<String>,
     help: bool,
+}
+
+#[derive(Debug)]
+struct SqliteHeader {
+    header_string: [u8; 16],
+    page_size: u16,
+    write_version: u8,
+    read_version: u8,
+    reserved_space: u8,
+    max_payload_fraction: u8,
+    min_payload_fraction: u8,
+    leaf_payload_fraction: u8,
+    file_change_counter: u32,
+    database_size_pages: u32,
+    first_freelist_page: u32,
+    total_freelist_pages: u32,
+    schema_cookie: u32,
+    schema_format: u32,
+    default_cache_size: u32,
+    auto_vacuum: u32,
+    text_encoding: u32,
+    user_version: u32,
+    incremental_vacuum_mode: u32,
+    application_id: u32,
+    reserved_for_expansion: [u8; 20],
+    version_valid_for_number: u32,
+    sqlite_version: u32,
 }
 
 #[derive(Debug)]
@@ -60,6 +89,14 @@ struct ExpiredTable {
     expired_at: String,
 }
 
+fn read_u32(buf: &[u8], offset: usize) -> u32 {
+    u32::from_be_bytes([buf[offset], buf[offset + 1], buf[offset + 2], buf[offset + 3]])
+} 
+
+fn read_u16(buf: &[u8], offset: usize) -> u16 {
+    u16::from_be_bytes([buf[offset], buf[offset + 1]])
+}
+
 fn display_help() {
     eprintln!("Usage: tcc_reader [OPTIONS]");
     eprintln!();
@@ -91,7 +128,94 @@ fn parse_args(mut args: std::env::Args) -> Config {
     }
 }
 
-fn read_database(path: String) -> Result<()> {
+fn read_header(path: &str) -> Result<SqliteHeader, Error> {
+    let mut file = File::open(path)?;
+    let mut buf = [0u8; 100];
+    Read::read_exact(&mut file, &mut buf)?;
+    
+    let mut header_string = [0u8; 16];
+    header_string.copy_from_slice(&buf[offsets::HEADER_STRING..offsets::HEADER_STRING + 16]);
+
+    let mut reserved_for_expansion = [0u8; 20];
+    reserved_for_expansion.copy_from_slice(&buf[offsets::RESERVED_FOR_EXPANSION..offsets::RESERVED_FOR_EXPANSION + 20]);
+    
+    Ok(
+        SqliteHeader {
+            header_string,
+            page_size: read_u16(&buf, offsets::PAGE_SIZE),
+            write_version: buf[offsets::WRITE_VERSION],
+            read_version: buf[offsets::READ_VERSION],
+            reserved_space: buf[offsets::RESERVED_SPACE],
+            max_payload_fraction: buf[offsets::MAX_PAYLOAD_FRACTION],
+            min_payload_fraction: buf[offsets::MIN_PAYLOAD_FRACTION],
+            leaf_payload_fraction: buf[offsets::LEAF_PAYLOAD_FRACTION],
+            file_change_counter: read_u32(&buf, offsets::FILE_CHANGE_COUNTER),
+            database_size_pages: read_u32(&buf, offsets::DATABASE_SIZE_PAGES),
+            first_freelist_page: read_u32(&buf, offsets::FIRST_FREELIST_PAGE),
+            total_freelist_pages: read_u32(&buf, offsets::TOTAL_FREELIST_PAGES),
+            schema_cookie: read_u32(&buf, offsets::SCHEMA_COOKIE),
+            schema_format: read_u32(&buf, offsets::SCHEMA_FORMAT),
+            default_cache_size: read_u32(&buf, offsets::DEFAULT_CACHE_SIZE),
+            auto_vacuum: read_u32(&buf, offsets::AUTO_VACUUM),
+            text_encoding: read_u32(&buf, offsets::TEXT_ENCODING),
+            user_version: read_u32(&buf, offsets::USER_VERSION),
+            incremental_vacuum_mode: read_u32(&buf, offsets::INCREMENTAL_VACUUM_MODE),
+            application_id: read_u32(&buf, offsets::APPLICATION_ID),
+            reserved_for_expansion,
+            version_valid_for_number: read_u32(&buf, offsets::VERSION_VALID_FOR_NUMBER),
+            sqlite_version: read_u32(&buf, offsets::SQLITE_VERSION),
+        }
+    )
+}
+
+fn parse_header (header: &SqliteHeader) {
+    println!("----=#=---- Header Info ----=#=----");
+
+    let header_string = match std::str::from_utf8(&header.header_string) {
+        Ok(string) => string.trim_end_matches('\0').to_string(),
+        Err(_) => format!("Invalid utf-8 file header: {:02x?}", &header.header_string),
+    };
+
+    let text_encoding = match header.text_encoding {
+        1 => String::from("UTF-8"),
+        2 => String::from("UTF-16le"),
+        3 => String::from("UTF-16be"),
+        _ => format!("Unknown text encoding: {:02x?}", &header.text_encoding),
+    };
+
+    let write_version = match header.write_version {
+        1 => String::from("Rollback (legacy)"),
+        2 => String::from("WAL"),
+        _ => format!("Unknown write version: {:02x?}", &header.write_version),
+    };
+
+    let version = format!("{}.{}.{}", 
+        &header.sqlite_version / 1_000_000,
+        (&header.sqlite_version % 1_000_000) / 1_000,
+        &header.sqlite_version % 1_000
+    );
+
+    println!("Header string: {}", header_string);
+    println!("SQLite version: {}", version);
+    println!("Page size: {} bytes", header.page_size);
+    println!("Database size (pages): {} pages", header.database_size_pages);
+    println!("Database size (bytes): {} bytes", header.database_size_pages as u64 * header.page_size as u64);
+    println!("Text encoding: {}", text_encoding);
+    println!("Journal mode: {}", write_version);
+    println!("File change counter: {}", header.file_change_counter);
+    println!("Schema cookie: {}", header.schema_cookie);
+    println!("Schema format: {}", header.schema_format);
+    println!("Freelist pages: {} (first: {})",
+        header.total_freelist_pages,
+        header.first_freelist_page,
+    );
+    println!("Auto-vacuum: {}", if header.auto_vacuum == 0 { "off" } else { "on" });
+    println!("Incremental vacuum: {}", if header.incremental_vacuum_mode == 0 { "off" } else { "on" });
+    println!("User version: {}", header.user_version);
+    println!("Application ID: {}", header.application_id);
+}
+
+fn read_database(path: &str) -> Result<Vec<AccessTable>> {
     let conn = Connection::open(path)?;
     let mut statement = conn.prepare(queries::ACCESS)?;
     let access_iter = statement.query_map([], |row| {
@@ -112,24 +236,101 @@ fn read_database(path: String) -> Result<()> {
         })
     })?;
 
+    let mut results = Vec::new();
     for access in access_iter {
-        println!("{:?}", access?);
+        results.push(access?);
     }
 
-    Ok(())
+    Ok(results)
 }
 
-fn main() {
+fn parse_database(records: &Vec<AccessTable>) {
+    println!("----=#=---- Access Table Info ----=#=----");
+
+    for (i, record) in records.iter().enumerate() {
+        println!("---< Record #{} >---", i + 1);
+        parse_record(record);
+    }
+}
+
+fn parse_record(record: &AccessTable) {
+    let client_type = match &record.client_type {
+        0 => String::from("Bundle ID"),
+        1 => String::from("Absolute Path"),
+        _ => format!("Unknown client type: {:?}", &record.client_type), 
+    };
+
+    let auth_value = match &record.auth_value {
+        0 => String::from("Denied"),
+        1 => String::from("Unknown"),
+        2 => String::from("Allowed"),
+        3 => String::from("Limited"),
+        _ => format!("Unknown auth value: {:?}", &record.auth_value),
+    };
+
+    let auth_reason = match &record.auth_reason {
+        1 => String::from("User Consent"),
+        2 => String::from("User Set"),
+        3 => String::from("System Set"),
+        4 => String::from("Service Policy"),
+        5 => String::from("MDM Policy"),
+        6 => String::from("Override Policy"),
+        7 => String::from("Missing Usage String"),
+        8 => String::from("Prompt Timeout"),
+        9 => String::from("Preflight Unknown"),
+        10 => String::from("Entitled"),
+        11 => String::from("App Type Policy"),
+        _ => format!("Unknown auth reason: {:?}", &record.auth_reason),
+    };
+
+    let csreq = match &record.csreq {
+        Some(bytes) => format!("{:?} bytes", bytes.len()),
+        None => String::from("None"),
+    };
+
+    let policy_id = match &record.policy_id {
+        Some(id) => id.to_string(),
+        None => String::from("None"),
+    };
+
+    let indirect_object_identifier_type = match &record.indirect_object_identifier_type {
+        Some(0) => String::from("Bundle ID"),
+        Some(1) => String::from("Absolute Path"),
+        Some(_) => format!("Unknown indirect object identifier type: {:?}", &record.indirect_object_identifier_type),
+        None => String::from("None"),
+    };
+
+    println!("Service: {}", record.service);
+    println!("Client: {}", record.client);
+    println!("Client Type: {}", client_type);
+    println!("Auth Value: {}", auth_value);
+    println!("Auth Reason: {}", auth_reason);
+    println!("Auth Version: {}", record.auth_version);
+    println!("Code Signing Req: {}", csreq);
+    println!("Policy ID: {}", policy_id); 
+    println!("Indirect Object Type: {}", indirect_object_identifier_type);
+    println!("Indirect Object: {}", record.indirect_object_identifier);
+}
+
+fn main() -> Result<()>{
     let config: Config = parse_args(env::args());
 
     if config.help {
         display_help();
-        return;
+        return Ok(())
     }
 
     match config.input_file_path {
         Some(path) => {
-            read_database(path);
+            match read_header(&path) {
+                Ok(header) => parse_header(&header),
+                Err(err) => eprintln!("Failed to read header: {}", err)
+            }
+
+            match read_database(&path) {
+                Ok(records) => parse_database(&records),   
+                Err(err) => eprintln!("Failed to parse database: {}", err),
+            }     
         }
         None => {
             eprintln!("No input file was provided. Use --file or -f to specify one.\n");
@@ -144,4 +345,6 @@ fn main() {
             eprintln!("No output file was provided. Use --output or -o to specify one.\n");
         }
     }
+
+    Ok(())
 }
