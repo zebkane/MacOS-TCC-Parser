@@ -1,0 +1,1 @@
+pub const ACCESS: &str = "SELECT service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity FROM access";
