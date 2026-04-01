@@ -1,4 +1,5 @@
 /target
 /tcc_test_samples
 *.db
+.DS_Store
 
