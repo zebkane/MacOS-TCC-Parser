@@ -17,6 +17,16 @@ struct Config {
 }
 
 #[derive(Debug)]
+struct Database {
+    admin: Vec<AdminRecord>,
+    policies: Vec<PoliciesRecord>,
+    active_policy: Vec<ActivePolicyRecord>,
+    access: Vec<AccessRecord>,
+    access_overrides: Vec<AccessOverridesRecord>,
+    expired: Vec<ExpiredRecord>,
+}
+
+#[derive(Debug)]
 struct SqliteHeader {
     header_string: [u8; 16],
     page_size: u16,
@@ -44,7 +54,28 @@ struct SqliteHeader {
 }
 
 #[derive(Debug)]
-struct AccessTable {
+struct AdminRecord {
+    key: String,
+    value: String,
+}
+
+#[derive(Debug)]
+struct PoliciesRecord {
+    id: u32,
+    bundle_id: u32,
+    uuid: String,
+    display: String,
+}
+
+#[derive(Debug)]
+struct ActivePolicyRecord {
+    client: String,
+    client_type: String,
+    policy_id: u32,
+}
+
+#[derive(Debug)]
+struct AccessRecord {
     service: String,
     client: String,
     client_type: u32,
@@ -59,28 +90,12 @@ struct AccessTable {
 }
 
 #[derive(Debug)]
-struct AdminTable {
-    key: String,
-    value: String,
+struct AccessOverridesRecord {
+    service: String,
 }
 
 #[derive(Debug)]
-struct PoliciesTable {
-    id: u32,
-    bundle_id: u32,
-    uuid: String,
-    display: String,
-}
-
-#[derive(Debug)]
-struct ActivePolicyTable {
-    client: String,
-    client_type: String,
-    policy_id: u32,
-}
-
-#[derive(Debug)]
-struct ExpiredTable {
+struct ExpiredRecord {
     service: String,
     client: String,
     client_type: String,
@@ -215,12 +230,112 @@ fn parse_header (header: &SqliteHeader) {
     println!("Application ID: {}", header.application_id);
 }
 
-fn read_database(path: &str) -> Result<Vec<AccessTable>> {
-    let conn = Connection::open(path)?;
-    let mut statement = conn.prepare(queries::ACCESS)?;
-    let access_iter = statement.query_map([], |row| {
+fn read_admin_table(conn: &Connection) -> Result<Vec<AdminRecord>> {
+    let mut statement = conn.prepare(queries::ADMIN)?;
+    let table_iter = statement.query_map([], |row| {
         Ok({
-            AccessTable {
+            AdminRecord {
+                key: row.get(0)?,
+                value: row.get(1)?,
+            }
+        })
+    })?;
+
+    let mut results = Vec::new();
+    for record in table_iter {
+        results.push(record?);
+    }
+
+    Ok(results)
+}
+
+fn read_policies_table(conn: &Connection) -> Result<Vec<PoliciesRecord>> {
+    let mut statement = conn.prepare(queries::POLICIES)?;
+    let table_iter = statement.query_map([], |row| {
+        Ok({
+            PoliciesRecord {
+                id: row.get(0)?,
+                bundle_id: row.get(1)?,
+                uuid: row.get(2)?,
+                display: row.get(3)?,
+            }
+        })
+    })?;
+
+    let mut results = Vec::new();
+    for record in table_iter {
+        results.push(record?);
+    }
+
+    Ok(results)
+}
+
+fn read_active_policy_table(conn: &Connection) -> Result<Vec<ActivePolicyRecord>> {
+    let mut statement = conn.prepare(queries::ACTIVE_POLICY)?;
+    let table_iter = statement.query_map([], |row| {
+        Ok({
+            ActivePolicyRecord {
+                client: row.get(0)?,
+                client_type: row.get(1)?,
+                policy_id: row.get(2)?,
+            }
+        })
+    })?;
+
+    let mut results = Vec::new();
+    for record in table_iter {
+        results.push(record?);
+    }
+
+    Ok(results)
+}
+
+fn read_access_overrides_table(conn: &Connection) -> Result<Vec<AccessOverridesRecord>> {
+    let mut statement = conn.prepare(queries::ACCESS_OVERRIDES)?;
+    let table_iter = statement.query_map([], |row| {
+        Ok({
+            AccessOverridesRecord {
+                service: row.get(0)?,
+            }
+        })
+    })?;
+
+    let mut results = Vec::new();
+    for record in table_iter {
+        results.push(record?);
+    }
+
+    Ok(results)
+}
+
+fn read_expired_table(conn: &Connection) -> Result<Vec<ExpiredRecord>> {
+    let mut statement = conn.prepare(queries::EXPIRED)?;
+    let table_iter = statement.query_map([], |row| {
+        Ok({
+            ExpiredRecord {
+                service: row.get(0)?,
+                client: row.get(1)?,
+                client_type: row.get(2)?,
+                csreq: row.get(3)?,
+                last_modified: row.get(4)?,
+                expired_at: row.get(5)?,
+            }
+        })
+    })?;
+
+    let mut results = Vec::new();
+    for record in table_iter {
+        results.push(record?);
+    }
+
+    Ok(results)
+}
+
+fn read_access_table(conn: &Connection) -> Result<Vec<AccessRecord>> {
+    let mut statement = conn.prepare(queries::ACCESS)?;
+    let table_iter = statement.query_map([], |row| {
+        Ok({
+            AccessRecord {
                 service: row.get(0)?,
                 client: row.get(1)?,
                 client_type: row.get(2)?,
@@ -237,23 +352,45 @@ fn read_database(path: &str) -> Result<Vec<AccessTable>> {
     })?;
 
     let mut results = Vec::new();
-    for access in access_iter {
-        results.push(access?);
+    for record in table_iter {
+        results.push(record?);
     }
 
     Ok(results)
 }
 
-fn parse_database(records: &Vec<AccessTable>) {
+fn read_database(path: &str) -> Result<Database> {
+    let conn = Connection::open(&path)?;
+
+    Ok((
+            Database { 
+                admin: read_admin_table(&conn)?, 
+                policies: read_policies_table(&conn)?, 
+                active_policy: read_active_policy_table(&conn)?, 
+                access: read_access_table(&conn)?, 
+                access_overrides: read_access_overrides_table(&conn)?, 
+                expired: read_expired_table(&conn)?, 
+            }
+    ))
+}
+
+fn parse_database(database: &Database) {
+    println!("----=#=---- Admin Table Info ----=#=----");
+
+    // for (i, record) in database.admin.iter().enumerate() {
+    //     println!("---< Record #{} >---", i + 1);
+    //     parse_record(record);
+    // }
+
     println!("----=#=---- Access Table Info ----=#=----");
 
-    for (i, record) in records.iter().enumerate() {
-        println!("---< Record #{} >---", i + 1);
+    for (i, record) in database.access.iter().enumerate() {
+        println!("---< Access Record #{} >---", i + 1);
         parse_record(record);
     }
 }
 
-fn parse_record(record: &AccessTable) {
+fn parse_record(record: &AccessRecord) {
     let client_type = match &record.client_type {
         0 => String::from("Bundle ID"),
         1 => String::from("Absolute Path"),
@@ -328,7 +465,7 @@ fn main() -> Result<()>{
             }
 
             match read_database(&path) {
-                Ok(records) => parse_database(&records),   
+                Ok(databse) => parse_database(&databse),   
                 Err(err) => eprintln!("Failed to parse database: {}", err),
             }     
         }
