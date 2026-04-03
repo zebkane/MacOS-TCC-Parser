@@ -1,7 +1,9 @@
 #![allow(unused)]
 
 use rusqlite::{Connection, Result, params};
+use std::collections::hash_set::SymmetricDifference;
 use std::env;
+use std::fmt::{format, from_fn};
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Error};
@@ -228,6 +230,7 @@ fn parse_header (header: &SqliteHeader) {
     println!("Incremental vacuum: {}", if header.incremental_vacuum_mode == 0 { "off" } else { "on" });
     println!("User version: {}", header.user_version);
     println!("Application ID: {}", header.application_id);
+    println!();
 }
 
 fn read_admin_table(conn: &Connection) -> Result<Vec<AdminRecord>> {
@@ -380,104 +383,141 @@ fn parse_database(database: &Database) {
     for (i, record) in database.admin.iter().enumerate() {
         println!("---< Admin Record #{} >---", i + 1);
         parse_admin_record(record);
+        println!();
     }
+
+    println!();
 
     println!("----=#=---- Policies Table Info ----=#=----");
 
     for (i, record) in database.policies.iter().enumerate() {
         println!("---< Policies Record #{} >---", i + 1);
         parse_policies_record(record);
+        println!();
     }
+
+    println!();
 
     println!("----=#=---- Active Policy Table Info ----=#=----");
 
     for (i, record) in database.active_policy.iter().enumerate() {
         println!("---< Active Policy Record #{} >---", i + 1);
         parse_active_policy_record(record);
+        println!();
     }
+
+    println!();
 
     println!("----=#=---- Access Table Info ----=#=----");
 
     for (i, record) in database.access.iter().enumerate() {
         println!("---< Access Record #{} >---", i + 1);
         parse_access_record(&record);
+        println!();
     }
+
+    println!();
 
     println!("----=#=---- Access Overrides Table Info ----=#=----");
 
     for (i, record) in database.access_overrides.iter().enumerate() {
         println!("---< Access Overrides Record #{} >---", i + 1);
         parse_access_overrides_record(&record);
+        println!();
     }
+    
+    println!();
 
     println!("----=#=---- Expired Table Info ----=#=----");
 
     for (i, record) in database.expired.iter().enumerate() {
         println!("---< Expired Record #{} >---", i + 1);
         parse_expired_record(&record);
+        println!();
     }
+
+    println!();
 }
 
 fn parse_admin_record(record: &AdminRecord) {
+    let description = match record.key.as_str() {
+       "version" => format!("TCC database schema version: {}", record.value),
+       _ => format!("Unknown TCC database schema version: {}: {}", record.key, record.value),
+    };
 
+    println!("{description}");
 }
 
 fn parse_policies_record(record: &PoliciesRecord) {
-
+    println!("Policy ID: {}", record.id);
+    println!("Bundle ID: {}", record.bundle_id);
+    println!("UUID: {}", record.uuid);
+    println!("Display Name: {}", record.display);
 }
 
 fn parse_active_policy_record(record: &ActivePolicyRecord) {
+    let client_type = match record.client_type {
+        0 => String::from("Bundle ID"),
+        1 => String::from("Absolute Path"),
+        _ => format!("Unknown client type: {}", record.client_type),
+    };
 
+    println!("Client: {}", record.client);
+    println!("Client Type: {}", record.client_type);
+    println!("Policy ID: {}", record.policy_id);
 }
 
 fn parse_access_record(record: &AccessRecord) {
-    let client_type = match &record.client_type {
+    let client_type = match record.client_type {
         0 => String::from("Bundle ID"),
         1 => String::from("Absolute Path"),
-        _ => format!("Unknown client type: {:?}", &record.client_type), 
+        _ => format!("Unknown client type: {}", record.client_type), 
     };
 
-    let auth_value = match &record.auth_value {
+    let auth_value = match record.auth_value {
         0 => String::from("Denied"),
         1 => String::from("Unknown"),
         2 => String::from("Allowed"),
         3 => String::from("Limited"),
-        _ => format!("Unknown auth value: {:?}", &record.auth_value),
+        _ => format!("Unknown auth value: {}", record.auth_value),
     };
 
-    let auth_reason = match &record.auth_reason {
-        1 => String::from("User Consent"),
-        2 => String::from("User Set"),
-        3 => String::from("System Set"),
-        4 => String::from("Service Policy"),
-        5 => String::from("MDM Policy"),
-        6 => String::from("Override Policy"),
-        7 => String::from("Missing Usage String"),
-        8 => String::from("Prompt Timeout"),
-        9 => String::from("Preflight Unknown"),
-        10 => String::from("Entitled"),
-        11 => String::from("App Type Policy"),
-        _ => format!("Unknown auth reason: {:?}", &record.auth_reason),
+    let auth_reason = match record.auth_reason {
+        1 => String::from("Error"),
+        2 => String::from("User Consent"),
+        3 => String::from("User Set"),
+        4 => String::from("System Set"),
+        5 => String::from("Service Policy"),
+        6 => String::from("MDM Policy"),
+        7 => String::from("Override Policy"),
+        8 => String::from("Missing Usage String"),
+        9 => String::from("Prompt Timeout"),
+        10 => String::from("Preflight Unknown"),
+        11 => String::from("Entitled"),
+        12 => String::from("App Type Policy"),
+        _ => format!("Unknown auth reason: {}", record.auth_reason),
     };
 
     let csreq = match &record.csreq {
-        Some(bytes) => format!("{:?} bytes", bytes.len()),
+        Some(bytes) => format!("{} bytes", bytes.len()),
         None => String::from("None"),
     };
 
-    let policy_id = match &record.policy_id {
+    let policy_id = match record.policy_id {
         Some(id) => id.to_string(),
         None => String::from("None"),
     };
 
-    let indirect_object_identifier_type = match &record.indirect_object_identifier_type {
+    let indirect_object_identifier_type = match record.indirect_object_identifier_type {
         Some(0) => String::from("Bundle ID"),
         Some(1) => String::from("Absolute Path"),
-        Some(_) => format!("Unknown indirect object identifier type: {:?}", &record.indirect_object_identifier_type),
+        Some(_) => format!("Unknown indirect object identifier type: {:?}", record.indirect_object_identifier_type),
         None => String::from("None"),
     };
 
-    println!("Service: {}", record.service);
+    let service_description = resolve_service_name(&record.service);
+
+    println!("Service: {} ({})", record.service, service_description);
     println!("Client: {}", record.client);
     println!("Client Type: {}", client_type);
     println!("Auth Value: {}", auth_value);
@@ -490,11 +530,69 @@ fn parse_access_record(record: &AccessRecord) {
 }
 
 fn parse_access_overrides_record(record: &AccessOverridesRecord) {
-
+    let service_description = resolve_service_name(&record.service);
+    println!("Service: {} ({})", record.service, service_description);
 }
 
 fn parse_expired_record(record: &ExpiredRecord) {
+   let client_type = match record.client_type {
+        0 => String::from("Bundle ID"),
+        1 => String::from("Absolute Path"),
+        _ => format!("Unknown client type: {}", record.client_type),
+   }; 
 
+   let csreq = match &record.csreq {
+       Some(bytes) => format!("{} bytes", bytes.len()),
+       None => String::from("None"),
+   };
+
+   println!("Service: {}", record.service);
+   println!("Client: {}", record.client);
+   println!("Client Type: {}", client_type);
+   println!("Code Signing Req: {}", csreq);
+   println!("Last Modified: {} (unix)", record.last_modified);
+   println!("Expired At: {} (unix)", record.expired_at);
+}
+
+fn resolve_service_name(service: &str) -> &str {
+    match service {
+        "kTCCServiceAddressBook" => "Contacts",
+        "kTCCServiceAppleEvents" => "Automation (Apple Events)",
+        "kTCCServiceBluetoothAlways" => "Bluetooth",
+        "kTCCServiceCalendar" => "Calendar",
+        "kTCCServiceCamera" => "Camera",
+        "kTCCServiceContactsFull" => "Full Contacts Access",
+        "kTCCServiceContactsLimited" => "Limited Contacts Access",
+        "kTCCServiceFileProviderDomain" => "File Provider Domain",
+        "kTCCServiceFileProviderPresence" => "File Provider Presence",
+        "kTCCServiceLocation" => "Location Services",
+        "kTCCServiceMediaLibrary" => "Media Library (Apple Music)",
+        "kTCCServiceMicrophone" => "Microphone",
+        "kTCCServiceMotion" => "Motion & Fitness",
+        "kTCCServicePhotos" => "Photos (Read/Write)",
+        "kTCCServicePhotosAdd" => "Photos (Add Only)",
+        "kTCCServiceReminders" => "Reminders",
+        "kTCCServiceScreenCapture" => "Screen Recording",
+        "kTCCServiceSiri" => "Siri",
+        "kTCCServiceSpeechRecognition" => "Speech Recognition",
+        "kTCCServiceSystemPolicyAllFiles" => "Full Disk Access",
+        "kTCCServiceSystemPolicyDesktopFolder" => "Desktop Folder",
+        "kTCCServiceSystemPolicyDeveloperFiles" => "Developer Files",
+        "kTCCServiceSystemPolicyDocumentsFolder" => "Documents Folder",
+        "kTCCServiceSystemPolicyDownloadsFolder" => "Downloads Folder",
+        "kTCCServiceSystemPolicyNetworkVolumes" => "Network Volumes",
+        "kTCCServiceSystemPolicyRemovableVolumes" => "Removable Volumes",
+        "kTCCServiceSystemPolicySysAdminFiles" => "System Admin Files",
+        "kTCCServiceAccessibility" => "Accessibility",
+        "kTCCServicePostEvent" => "Post Events (Keystrokes)",
+        "kTCCServiceListenEvent" => "Input Monitoring",
+        "kTCCServiceDeveloperTool" => "Developer Tools",
+        "kTCCServiceLiverpool" => "Location Services (Legacy)",
+        "kTCCServiceUbiquity" => "iCloud",
+        "kTCCServiceWillow" => "Home Data",
+        "kTCCServiceEndpointSecurityClient" => "Endpoint Security",
+        _ => "Unknown Service",
+    }
 }
 
 fn main() -> Result<()>{
