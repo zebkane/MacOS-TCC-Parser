@@ -56,13 +56,13 @@ struct SqliteHeader {
 #[derive(Debug)]
 struct AdminRecord {
     key: String,
-    value: String,
+    value: i64,
 }
 
 #[derive(Debug)]
 struct PoliciesRecord {
     id: u32,
-    bundle_id: u32,
+    bundle_id: String,
     uuid: String,
     display: String,
 }
@@ -70,7 +70,7 @@ struct PoliciesRecord {
 #[derive(Debug)]
 struct ActivePolicyRecord {
     client: String,
-    client_type: String,
+    client_type: u32,
     policy_id: u32,
 }
 
@@ -98,10 +98,10 @@ struct AccessOverridesRecord {
 struct ExpiredRecord {
     service: String,
     client: String,
-    client_type: String,
-    csreq: String,
-    last_modified: String,
-    expired_at: String,
+    client_type: u32,
+    csreq: Option<Vec<u8>>,
+    last_modified: i64,
+    expired_at: i64,
 }
 
 fn read_u32(buf: &[u8], offset: usize) -> u32 {
