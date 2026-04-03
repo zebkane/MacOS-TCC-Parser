@@ -377,20 +377,60 @@ fn read_database(path: &str) -> Result<Database> {
 fn parse_database(database: &Database) {
     println!("----=#=---- Admin Table Info ----=#=----");
 
-    // for (i, record) in database.admin.iter().enumerate() {
-    //     println!("---< Record #{} >---", i + 1);
-    //     parse_record(record);
-    // }
+    for (i, record) in database.admin.iter().enumerate() {
+        println!("---< Admin Record #{} >---", i + 1);
+        parse_admin_record(record);
+    }
+
+    println!("----=#=---- Policies Table Info ----=#=----");
+
+    for (i, record) in database.policies.iter().enumerate() {
+        println!("---< Policies Record #{} >---", i + 1);
+        parse_policies_record(record);
+    }
+
+    println!("----=#=---- Active Policy Table Info ----=#=----");
+
+    for (i, record) in database.active_policy.iter().enumerate() {
+        println!("---< Active Policy Record #{} >---", i + 1);
+        parse_active_policy_record(record);
+    }
 
     println!("----=#=---- Access Table Info ----=#=----");
 
     for (i, record) in database.access.iter().enumerate() {
         println!("---< Access Record #{} >---", i + 1);
-        parse_record(record);
+        parse_access_record(&record);
+    }
+
+    println!("----=#=---- Access Overrides Table Info ----=#=----");
+
+    for (i, record) in database.access_overrides.iter().enumerate() {
+        println!("---< Access Overrides Record #{} >---", i + 1);
+        parse_access_overrides_record(&record);
+    }
+
+    println!("----=#=---- Expired Table Info ----=#=----");
+
+    for (i, record) in database.expired.iter().enumerate() {
+        println!("---< Expired Record #{} >---", i + 1);
+        parse_expired_record(&record);
     }
 }
 
-fn parse_record(record: &AccessRecord) {
+fn parse_admin_record(record: &AdminRecord) {
+
+}
+
+fn parse_policies_record(record: &PoliciesRecord) {
+
+}
+
+fn parse_active_policy_record(record: &ActivePolicyRecord) {
+
+}
+
+fn parse_access_record(record: &AccessRecord) {
     let client_type = match &record.client_type {
         0 => String::from("Bundle ID"),
         1 => String::from("Absolute Path"),
@@ -447,6 +487,14 @@ fn parse_record(record: &AccessRecord) {
     println!("Policy ID: {}", policy_id); 
     println!("Indirect Object Type: {}", indirect_object_identifier_type);
     println!("Indirect Object: {}", record.indirect_object_identifier);
+}
+
+fn parse_access_overrides_record(record: &AccessOverridesRecord) {
+
+}
+
+fn parse_expired_record(record: &ExpiredRecord) {
+
 }
 
 fn main() -> Result<()>{
