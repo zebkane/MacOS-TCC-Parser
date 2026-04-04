@@ -1,29 +1,72 @@
 # Parser for MacOS TCC.db Files
 
-sqlite header format https://sqlite.org/fileformat.html
+This tool reads Apple MacOS TCC.db files located:
+- `/Library/Application Support/com.apple.TCC/TCC.db` (system)
+- `~/Library/Application Support/com.apple.TCC/TCC.db` (per user)
 
-| Offset | Size | Description |
-|--------|------|-------------|
-| 0 | 16 | The header string: "SQLite format 3\000" |
-| 16 | 2 | The database page size in bytes. Must be a power of two between 512 and 32768 inclusive, or the value 1 representing a page size of 65536. |
-| 18 | 1 | File format write version. 1 for legacy; 2 for WAL. |
-| 19 | 1 | File format read version. 1 for legacy; 2 for WAL. |
-| 20 | 1 | Bytes of unused "reserved" space at the end of each page. Usually 0. |
-| 21 | 1 | Maximum embedded payload fraction. Must be 64. |
-| 22 | 1 | Minimum embedded payload fraction. Must be 32. |
-| 23 | 1 | Leaf payload fraction. Must be 32. |
-| 24 | 4 | File change counter. |
-| 28 | 4 | Size of the database file in pages. The "in-header database size". |
-| 32 | 4 | Page number of the first freelist trunk page. |
-| 36 | 4 | Total number of freelist pages. |
-| 40 | 4 | The schema cookie. |
-| 44 | 4 | The schema format number. Supported schema formats are 1, 2, 3, and 4. |
-| 48 | 4 | Default page cache size. |
-| 52 | 4 | The page number of the largest root b-tree page when in auto-vacuum or incremental-vacuum modes, or zero otherwise. |
-| 56 | 4 | The database text encoding. A value of 1 means UTF-8. A value of 2 means UTF-16le. A value of 3 means UTF-16be. |
-| 60 | 4 | The "user version" as read and set by the user_version pragma. |
-| 64 | 4 | True (non-zero) for incremental-vacuum mode. False (zero) otherwise. |
-| 68 | 4 | The "Application ID" set by PRAGMA application_id. |
-| 72 | 20 | Reserved for expansion. Must be zero. |
-| 92 | 4 | The version-valid-for number. |
-| 96 | 4 | SQLITE_VERSION_NUMBER |
+This tool reads those databases and turns the values into an easy to understand format.
+
+## Options
+- `-f, --file <PATH>` — Path to the TCC.db file to read
+- `-o, --output <PATH>` — Path to write output (not yet implemented)
+- `-h, --help` — Print help
+
+## Building
+cargo build --release
+
+You will need full disk access for terminal to read TCC.db databases directly. Otherwise, copy the database somewhere else first.
+
+## Example Output
+```
+----=#=---- Header Info ----=#=----
+Header string: SQLite format 3
+SQLite version: 3.45.1
+Page size: 4096 bytes
+Database size (pages): 13 pages
+Database size (bytes): 53248 bytes
+Text encoding: UTF-8
+Journal mode: Rollback (legacy)
+File change counter: 7
+Schema cookie: 6
+Schema format: 4
+Freelist pages: 0 (first: 0)
+Auto-vacuum: off
+Incremental vacuum: off
+User version: 0
+Application ID: 0
+
+----=#=---- Admin Table Info ----=#=----
+---< Admin Record #1 >---
+TCC database schema version: 20
+
+
+----=#=---- Policies Table Info ----=#=----
+
+----=#=---- Active Policy Table Info ----=#=----
+
+----=#=---- Access Table Info ----=#=----
+---< Access Record #1 >---
+Service: kTCCServiceScreenCapture (Screen Recording)
+Client: us.zoom.xos
+Client Type: Bundle ID
+Auth Value: Allowed
+Auth Reason: User Set
+Auth Version: 1
+Code Signing Req: 36 bytes
+Policy ID: None
+Indirect Object Type: Bundle ID
+Indirect Object: UNUSED
+
+---< Access Record #2 >---
+Service: kTCCServiceScreenCapture (Screen Recording)
+Client: com.tinyspeck.slackmacgap
+Client Type: Bundle ID
+Auth Value: Allowed
+Auth Reason: User Set
+Auth Version: 1
+Code Signing Req: 52 bytes
+Policy ID: None
+Indirect Object Type: Bundle ID
+Indirect Object: UNUSED
+```
+
