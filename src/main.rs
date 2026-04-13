@@ -119,7 +119,6 @@ fn display_help() {
     eprintln!();
     eprintln!("Options:");
     eprintln!("  -f, --file <PATH>      Path to the TCC.db file to read");
-    eprintln!("  -o, --output <PATH>    Path to write output");
     eprintln!("  -h, --help             Print this message");
 }
 
@@ -186,24 +185,24 @@ fn read_header(path: &str) -> Result<SqliteHeader, Error> {
 }
 
 fn parse_header (header: &SqliteHeader) {
-    println!("----=#=---- Header Info ----=#=----");
+    println!("\x1b[1;96m----=#=---- Header Info ----=#=----\x1b[0m");
 
     let header_string = match std::str::from_utf8(&header.header_string) {
         Ok(string) => string.trim_end_matches('\0').to_string(),
-        Err(_) => format!("Invalid utf-8 file header: {:02x?}", &header.header_string),
+        Err(_) => format!("\x1b[1;93mInvalid utf-8 file header: {:02x?}\x1b[0m", &header.header_string),
     };
 
     let text_encoding = match header.text_encoding {
         1 => String::from("UTF-8"),
         2 => String::from("UTF-16le"),
         3 => String::from("UTF-16be"),
-        _ => format!("Unknown text encoding: {:02x?}", &header.text_encoding),
+        _ => format!("\x1b[1;93mUnknown text encoding: {:02x?}\x1b[0m", &header.text_encoding),
     };
 
     let write_version = match header.write_version {
         1 => String::from("Rollback (legacy)"),
         2 => String::from("WAL"),
-        _ => format!("Unknown write version: {:02x?}", &header.write_version),
+        _ => format!("\x1b[1;93mUnknown write version: {:02x?}\x1b[0m", &header.write_version),
     };
 
     let version = format!("{}.{}.{}", 
@@ -378,60 +377,60 @@ fn read_database(path: &str) -> Result<Database> {
 }
 
 fn parse_database(database: &Database) {
-    println!("----=#=---- Admin Table Info ----=#=----");
+    println!("\x1b[1;96m----=#=---- Admin Table Info ----=#=----\x1b[0m");
 
     for (i, record) in database.admin.iter().enumerate() {
-        println!("---< Admin Record #{} >---", i + 1);
+        println!("\x1b[1;95m---< Admin Record #{} >---\x1b[0m", i + 1);
         parse_admin_record(record);
         println!();
     }
 
     println!();
 
-    println!("----=#=---- Policies Table Info ----=#=----");
+    println!("\x1b[1;96m----=#=---- Policies Table Info ----=#=----\x1b[0m");
 
     for (i, record) in database.policies.iter().enumerate() {
-        println!("---< Policies Record #{} >---", i + 1);
+        println!("\x1b[1;95m---< Policies Record #{} >---\x1b[0m", i + 1);
         parse_policies_record(record);
         println!();
     }
 
     println!();
 
-    println!("----=#=---- Active Policy Table Info ----=#=----");
+    println!("\x1b[1;96m----=#=---- Active Policy Table Info ----=#=----\x1b[0m");
 
     for (i, record) in database.active_policy.iter().enumerate() {
-        println!("---< Active Policy Record #{} >---", i + 1);
+        println!("\x1b[1;95m---< Active Policy Record #{} >---\x1b[0m", i + 1);
         parse_active_policy_record(record);
         println!();
     }
 
     println!();
 
-    println!("----=#=---- Access Table Info ----=#=----");
+    println!("\x1b[1;96m----=#=---- Access Table Info ----=#=----\x1b[0m");
 
     for (i, record) in database.access.iter().enumerate() {
-        println!("---< Access Record #{} >---", i + 1);
+        println!("\x1b[1;95m---< Access Record #{} >---\x1b[0m", i + 1);
         parse_access_record(&record);
         println!();
     }
 
     println!();
 
-    println!("----=#=---- Access Overrides Table Info ----=#=----");
+    println!("\x1b[1;96m----=#=---- Access Overrides Table Info ----=#=----\x1b[0m");
 
     for (i, record) in database.access_overrides.iter().enumerate() {
-        println!("---< Access Overrides Record #{} >---", i + 1);
+        println!("\x1b[1;95m---< Access Overrides Record #{} >---\x1b[0m", i + 1);
         parse_access_overrides_record(&record);
         println!();
     }
     
     println!();
 
-    println!("----=#=---- Expired Table Info ----=#=----");
+    println!("\x1b[1;96m----=#=---- Expired Table Info ----=#=----\x1b[0m");
 
     for (i, record) in database.expired.iter().enumerate() {
-        println!("---< Expired Record #{} >---", i + 1);
+        println!("\x1b[1;95m---< Expired Record #{} >---\x1b[0m", i + 1);
         parse_expired_record(&record);
         println!();
     }
@@ -442,7 +441,7 @@ fn parse_database(database: &Database) {
 fn parse_admin_record(record: &AdminRecord) {
     let description = match record.key.as_str() {
        "version" => format!("TCC database schema version: {}", record.value),
-       _ => format!("Unknown TCC database schema version: {}: {}", record.key, record.value),
+       _ => format!("\x1b[1;93mUnknown TCC database schema version: {}: {}\x1b[0m", record.key, record.value),
     };
 
     println!("{description}");
@@ -459,7 +458,7 @@ fn parse_active_policy_record(record: &ActivePolicyRecord) {
     let client_type = match record.client_type {
         0 => String::from("Bundle ID"),
         1 => String::from("Absolute Path"),
-        _ => format!("Unknown client type: {}", record.client_type),
+        _ => format!("\x1b[1;93mUnknown client type: {}\x1b[0m", record.client_type),
     };
 
     println!("Client: {}", record.client);
@@ -471,7 +470,7 @@ fn parse_access_record(record: &AccessRecord) {
     let client_type = match record.client_type {
         0 => String::from("Bundle ID"),
         1 => String::from("Absolute Path"),
-        _ => format!("Unknown client type: {}", record.client_type), 
+        _ => format!("\x1b[1;93mUnknown client type: {}\x1b[0m", record.client_type), 
     };
 
     let auth_value = match record.auth_value {
@@ -479,7 +478,7 @@ fn parse_access_record(record: &AccessRecord) {
         1 => String::from("Unknown"),
         2 => String::from("Allowed"),
         3 => String::from("Limited"),
-        _ => format!("Unknown auth value: {}", record.auth_value),
+        _ => format!("\x1b[1;93mUnknown auth value: {}\x1b[0m", record.auth_value),
     };
 
     let auth_reason = match record.auth_reason {
@@ -495,7 +494,7 @@ fn parse_access_record(record: &AccessRecord) {
         10 => String::from("Preflight Unknown"),
         11 => String::from("Entitled"),
         12 => String::from("App Type Policy"),
-        _ => format!("Unknown auth reason: {}", record.auth_reason),
+        _ => format!("\x1b[1;93mUnknown auth reason: {}\x1b[0m", record.auth_reason),
     };
 
     let csreq = match &record.csreq {
@@ -511,7 +510,7 @@ fn parse_access_record(record: &AccessRecord) {
     let indirect_object_identifier_type = match record.indirect_object_identifier_type {
         Some(0) => String::from("Bundle ID"),
         Some(1) => String::from("Absolute Path"),
-        Some(_) => format!("Unknown indirect object identifier type: {:?}", record.indirect_object_identifier_type),
+        Some(_) => format!("\x1b[1;93mUnknown indirect object identifier type: {:?}\x1b[0m", record.indirect_object_identifier_type),
         None => String::from("None"),
     };
 
@@ -538,7 +537,7 @@ fn parse_expired_record(record: &ExpiredRecord) {
    let client_type = match record.client_type {
         0 => String::from("Bundle ID"),
         1 => String::from("Absolute Path"),
-        _ => format!("Unknown client type: {}", record.client_type),
+        _ => format!("\x1b[1;93mUnknown client type: {}\x1b[0m", record.client_type),
    }; 
 
    let csreq = match &record.csreq {
@@ -591,7 +590,7 @@ fn resolve_service_name(service: &str) -> &str {
         "kTCCServiceUbiquity" => "iCloud",
         "kTCCServiceWillow" => "Home Data",
         "kTCCServiceEndpointSecurityClient" => "Endpoint Security",
-        _ => "Unknown Service",
+        _ => "\x1b[1;93mUnknown Service\x1b[0m",
     }
 }
 
@@ -607,16 +606,16 @@ fn main() -> Result<()>{
         Some(path) => {
             match read_header(&path) {
                 Ok(header) => parse_header(&header),
-                Err(err) => eprintln!("Failed to read header: {}", err)
+                Err(err) => eprintln!("\x1b[1;91merror:\x1b[0m Failed to read header: {}", err)
             }
 
             match read_database(&path) {
                 Ok(databse) => parse_database(&databse),   
-                Err(err) => eprintln!("Failed to parse database: {}", err),
+                Err(err) => eprintln!("\x1b[1;91merror:\x1b[0m Failed to parse database: {}", err),
             }     
         }
         None => {
-            eprintln!("No input file was provided. Use --file or -f to specify one.\n");
+            eprintln!("\x1b[1;91merror:\x1b[0m No input file was provided. Use --file or -f to specify one.\n");
         }
     }
 
@@ -625,7 +624,7 @@ fn main() -> Result<()>{
             // To do
         }
         None => {
-            eprintln!("No output file was provided. Use --output or -o to specify one.\n");
+            eprintln!("\x1b[1;91merror:\x1b[0m No output file was provided. Use --output or -o to specify one.\n");
         }
     }
 

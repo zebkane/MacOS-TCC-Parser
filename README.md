@@ -8,7 +8,6 @@ This tool reads those databases and turns the values into an easy to understand 
 
 ## Options
 - `-f, --file <PATH>` — Path to the TCC.db file to read
-- `-o, --output <PATH>` — Path to write output (not yet implemented)
 - `-h, --help` — Print help
 
 ## Building
